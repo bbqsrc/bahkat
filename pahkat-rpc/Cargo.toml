@@ -26,7 +26,7 @@ env_logger = "0.7.1"
 crossbeam = "0.7.3"
 cffi = { version = "0.1", features = ["url"] }
 anyhow = "1.0.32"
-stream-cancel = "0.6.1"
+stream-cancel = "0.8.0"
 once_cell = "1.4.0"
 fern = "0.6.0"
 structopt = "0.3.15"

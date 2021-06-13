@@ -5,7 +5,7 @@ authors = ["Brendan Molloy <brendan@bbqsrc.net>"]
 edition = "2018"
 
 [dependencies]
-tokio = { version = "0.2", features = ["macros", "net", "time"] }
+tokio = { version = "1.6", features = ["macros", "net", "time"] }
 warp = "0.2"
 serde = { version = "1.0.110", features = ["derive"] }
 thiserror = "1.0.19"

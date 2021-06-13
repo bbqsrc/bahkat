@@ -13,7 +13,13 @@ chrono = { version = "0.4.15", features = ["serde"] }
 thiserror = "1.0.20"
 typed-builder = "0.7.0"
 structopt = { version = "0.3.16", optional = true }
+fbs = "0.6"
+fbs-build = "0.1"
 
 [dev-dependencies]
 serde_json = "*"
 toml = "*"
+
+[build-dependencies]
+anyhow = "1.0.32"
+fbs-build = "0.1"

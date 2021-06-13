@@ -88,7 +88,7 @@ impl Default for InstallTarget {
     }
 }
 
-pub type Stream<T> = Pin<Box<dyn futures::stream::Stream<Item = T> + Send + Sync + 'static>>;
+pub type Stream<T> = Pin<Box<dyn futures::stream::Stream<Item = T> + Send + 'static>>;
 pub type Future<T> = Pin<Box<dyn std::future::Future<Output = T> + Send + Sync + 'static>>;
 
 pub trait PackageStore: Send + Sync {

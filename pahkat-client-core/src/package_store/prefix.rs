@@ -199,7 +199,6 @@ impl PackageStore for PrefixPackageStore {
         Box<
             dyn futures::stream::Stream<Item = crate::package_store::DownloadEvent>
                 + Send
-                + Sync
                 + 'static,
         >,
     > {

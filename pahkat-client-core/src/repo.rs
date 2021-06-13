@@ -1,20 +1,24 @@
 mod repository;
 
+use futures::Future;
 pub use pahkat_types::PackageKey;
 pub use repository::{LoadedRepository, RepoDownloadError};
 
 use std::collections::BTreeMap;
 use std::convert::{TryFrom, TryInto};
 use std::path::Path;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock};
+use std::hash::Hash;
 
+use crossbeam_queue::SegQueue;
 use futures::future::FutureExt;
 use futures::stream::StreamExt;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use sha2::digest::Digest;
 use sha2::Sha256;
 use thiserror::Error;
-use url::Url;
+use tokio::task::{JoinError, JoinHandle};
 
 use crate::config::Config;
 use crate::defaults;
@@ -643,6 +647,57 @@ pub(crate) fn find_package_by_id(
     })
 }
 
+pub async fn work<T, W, F, C>(
+    context: C,
+    starting_items: SegQueue<W>,
+    worker: F,
+) -> Result<HashMap<W, T>, JoinError>
+where
+    W: std::fmt::Debug + Clone + Eq + Hash + Send + Sync + 'static,
+    F: Fn(W, Arc<SegQueue<W>>, Arc<C>) -> Pin<Box<dyn Future<Output = T> + Send + Sync + 'static>>
+        + Send
+        + Sync
+        + 'static,
+    T: Send + Sync + 'static,
+{
+    let context = Arc::new(context);
+    let work_queue = Arc::new(starting_items);
+    let fut_queue = Arc::new(SegQueue::<(W, JoinHandle<T>)>::new());
+
+    let mut is_processed = HashSet::<W>::new();
+    let mut completed = HashMap::<W, T>::new();
+
+    loop {
+        if fut_queue.is_empty() && work_queue.is_empty() {
+            log::trace!("All queues empty, breaking.");
+            break;
+        }
+
+        if let Ok(item) = fut_queue.pop() {
+            let (work, future) = item;
+            log::trace!("Got item from future queue for {:?}.", &work);
+            completed.insert(work, future.await?);
+        }
+
+        while let Ok(work) = work_queue.pop() {
+            if is_processed.contains(&work) {
+                log::trace!("Item {:?} already processed.", &work);
+                continue;
+            }
+
+            is_processed.insert(work.clone());
+
+            log::trace!("Processing {:?}", &work);
+            fut_queue.push((
+                work.clone(),
+                tokio::spawn(worker(work, Arc::clone(&work_queue), Arc::clone(&context))),
+            ));
+        }
+    }
+
+    Ok(completed)
+}
+
 #[must_use]
 pub(crate) async fn refresh_repos(
     config: Config,
@@ -666,7 +721,7 @@ pub(crate) async fn refresh_repos(
         if repo_keys.is_empty() {
             Default::default()
         } else {
-            workqueue::work(config, repo_keys, |url, queue, config| {
+            work(config, repo_keys, |url, queue, config| {
                 Box::pin(async move {
                     log::trace!("Downloading repo at {:?}…", &url);
     
